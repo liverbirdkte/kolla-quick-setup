@@ -4,63 +4,74 @@ import os
 import subprocess
 
 from git import Repo
+import yaml
 
 KOLLA_ANSIBLE_REPO = 'https://github.com/openstack/kolla-ansible.git'
 WORK_DIR = os.path.dirname(os.path.abspath(__file__))
+DEFAULT_INVENTORY = 'kolla-ansible/ansible/inventory/'
+DEFAULT_GLOBALS = 'kolla-ansible/etc/kolla/globals.yml'
 
 
-def provision_deploy_node(controllers, computes):
+def provision_deploy_node(conf):
+    os.chdir(WORK_DIR)
     install_kolla_ansible()
-    update_conf(controllers, computes)
+    generate_inventory(conf)
+    generate_conf(conf)
     bootstrap_server()
 
 
 def install_kolla_ansible():
-    repo = Repo('kolla-ansible')
-    repo.clone(KOLLA_ANSIBLE_REPO)
-    subprocess.run(
+    repo = Repo.clone_from(
+        KOLLA_ANSIBLE_REPO,
+        os.path.join(WORK_DIR, 'kolla-ansible'))
+    subprocess.check_call(
         'sudo pip install -r kolla-ansible/requirements.txt',
-        shell=True,
-        check=True
+        shell=True
     )
-    subprocess.run('sudo mkdir -p /etc/kolla', shell=True, check=True)
-    subprocess.run('sudo chown $USER:$USER /etc/kolla', shell=True, check=True)
-    subprocess.run(
+    subprocess.check_call('sudo mkdir -p /etc/kolla', shell=True)
+    subprocess.check_call('sudo chown $USER:$USER /etc/kolla', shell=True)
+    subprocess.check_call(
         'cp -r kolla-ansible/etc/kolla/* /etc/kolla',
-        shell=True,
-        check=True
-    )
-    subprocess.run(
-        'cp kolla-ansible/ansible/inventory/* .',
-        shell=True,
-        check=True)
+        shell=True)
 
 
-def update_conf(controllers, computes):
-    if len(computes) == 1 \
-            and controllers[0] == computes[0]:
+def generate_inventory(conf):
+    if len(conf.compute_nodes) == 1 \
+            and conf.controller_nodes[0] == conf.compute_nodes[0]:
         inventory_file = 'all-in-one'
     else:
         inventory_file = 'multinode'
 
+    print inventory_file
     inventory_parser = configparser.ConfigParser(allow_no_value=True)
     inventory_parser.read(os.path.join(
-        'kolla-ansible/ansible/inventory/', inventory_file))
+        DEFAULT_INVENTORY, inventory_file))
 
     if inventory_file == 'multinode':
-        for section in ('control', 'network', 'monitoring'):
-            inventory_parser.remove_section(section)
-            inventory_parser.add_section(section)
-            inventory_parser.set(section, controllers[0])
+        for section in (
+                'control', 'network', 'monitoring', 'compute', 'storage'):
+            for name, value in inventory_parser.items(section):
+                inventory_parser.remove_option(section, name)
 
-        inventory_parser.remove_section('compute')
-        inventory_parser.add_section('compute')
-        for compute in computes:
-            inventory_parser.set('compute', compute)
+        for control_section in ('control', 'network', 'monitoring'):
+            inventory_parser.set(control_section, conf.contrller_nodes[0])
 
-        inventory_parser.remove_option('storage', 'storage01')
+        for compute_node in conf.compute_nodes:
+            inventory_parser.set('compute', compute_node)
 
-    inventory_parser.write(os.path.join(WORK_DIR, inventory_file))
+        with open(os.path.join(WORK_DIR, inventory_file), 'wb') as config_file:
+            inventory_parser.write(config_file)
+
+
+def generate_conf(conf):
+    with open(DEFAULT_GLOBALS) as default_global_file:
+        global_conf = yaml.load(
+            default_global_file.read(), Loader=yaml.FullLoader)
+    global_conf.update(conf.kolla_ansible_conf)
+    with open('globals.yml', 'w') as new_global_file:
+        yaml.dump(global_conf, new_global_file)
+
+    subprocess.check_call('cp -f globals.yml /etc/kolla')
 
 
 def bootstrap_server():
@@ -75,6 +86,22 @@ def deploy():
     pass
 
 
+class Config(object):
+
+    def __init__(self, config_file):
+        self.config_file = config_file
+        self.parser = configparser.ConfigParser(allow_no_value=True)
+        self.compute_nodes, self.controller.nodes = [], []
+        self.kolla_ansible_conf = None
+        self.parse_config()
+
+    def parse_config(self):
+        self.parser.read(self.config_file)
+        self.compute_nodes.extend(list(parser['compute'].keys()))
+        self.controller_nodes.extend(list(parser['controller'].keys()))
+        self.kolla_ansible_conf = parser.items('kolla-ansible')
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='quickly setup kolla deployment')
@@ -83,10 +110,4 @@ if __name__ == '__main__':
                         help='path of config file with info of the deployment')
 
     args = parser.parse_args()
-
-    parser = configparser.ConfigParser(allow_no_value=True)
-    parser.read(args.config_file)
-    os.chdir(WORK_DIR)
-    compute_nodes = list(parser['compute'].keys())
-    controller_nodes = list(parser['controller'].keys())
-    provision_deploy_node(controller_nodes, compute_nodes)
+    provision_deploy_node(Config(args.config_file))
