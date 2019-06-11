@@ -1,2 +1,4 @@
+ansible
 gitpython
-paramiko
+PyYAML
+
