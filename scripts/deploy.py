@@ -38,7 +38,6 @@ def install_kolla_ansible(conf):
     # checkout corresponding branch
     if release != 'master':
         repo.git.checkout('-b', 'stable/{}'.format(release))
-    return
     subprocess.run(
         'pip3 install -r kolla-ansible/requirements.txt',
         shell=True,
