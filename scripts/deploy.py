@@ -6,10 +6,12 @@ import subprocess
 from git import Repo
 import yaml
 
-KOLLA_ANSIBLE_REPO = 'https://github.com/openstack/kolla-ansible.git'
 WORK_DIR = os.path.dirname(os.path.abspath(__file__))
+
 DEFAULT_INVENTORY = 'kolla-ansible/ansible/inventory/'
 DEFAULT_GLOBALS = 'kolla-ansible/etc/kolla/globals.yml'
+KOLLA_ANSIBLE_REPO = 'https://github.com/openstack/kolla-ansible.git'
+KOLLA_ANSIBLE_CMD = 'kolla-ansible/tools/kolla-ansible'
 
 
 def provision_deploy_node(conf):
@@ -80,7 +82,8 @@ def generate_conf(conf):
 
 def bootstrap_server(conf):
     subprocess.run(
-        './kolla-ansible/tools/kolla-ansible -i %s bootstrap-servers' % conf.inventory_file,
+        './{} -i {} bootstrap-servers'.format(
+            KOLLA_ANSIBLE_CMD, conf.inventory_file),
         shell=True,
         check=True
     )
@@ -88,7 +91,7 @@ def bootstrap_server(conf):
 
 def prechecks(conf):
     subprocess.run(
-        './kolla-ansible/tools/kolla-ansible -i %s prechecks' % conf.inventory_file,
+        './{} -i {} prechecks'.format(KOLLA_ANSIBLE_CMD, conf.inventory_file),
         shell=True,
         check=True
     )
@@ -96,12 +99,13 @@ def prechecks(conf):
 
 def deploy(conf):
     subprocess.run(
-        './kolla-ansible/tools/kolla-ansible -i %s deploy' % conf.inventory_file,
+        './{} -i {} deploy'.format(KOLLA_ANSIBLE_CMD, conf.inventory_file),
         shell=True,
         check=True
     )
     subprocess.run(
-        './kolla-ansible/tools/kolla-ansible -i %s post-deploy' % conf.inventory_file,
+        './{} -i {} post-deploy'.format(
+            KOLLA_ANSIBLE_CMD, conf.inventory_file),
         shell=True,
         check=True
     )
