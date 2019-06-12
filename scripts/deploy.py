@@ -1,6 +1,7 @@
 import argparse
 import configparser
 import os
+import shutil
 import subprocess
 
 from git import Repo
@@ -25,16 +26,19 @@ def provision_deploy_node(conf):
 
 
 def install_kolla_ansible(conf):
+    repo_path = os.path.join(WORK_DIR, 'kolla-ansible')
+    if os.path.exists(repo_path):
+        shutil.rmtree(repo_path)
     repo = Repo.clone_from(
         KOLLA_ANSIBLE_REPO,
-        os.path.join(WORK_DIR, 'kolla-ansible'))
+        repo_path)
     release = conf.kolla_ansible_conf.get('openstack_release') or 'master'
 
     # If user requests OpenStack release other than master
     # checkout corresponding branch
     if release != 'master':
         repo.git.checkout('-b', 'stable/{}'.format(release))
-
+    return
     subprocess.run(
         'pip3 install -r kolla-ansible/requirements.txt',
         shell=True,

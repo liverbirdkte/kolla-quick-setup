@@ -25,6 +25,9 @@ A typical config's structure is similar to a INI file, which consists of three s
 You should specify compute and controller hosts in compute and controller sections. Options in kolla-ansible section will be used
 to produce globals.yml file for kolla ansible deploy. So the option name and value are exactly identical to globals.yml.
 
+The script will install kolla-ansible, generate related configs, bootstrap servers and deploy automatically. You have to make
+sure the deploy host can ssh to all the OpenStack nodes and the account are in the sudoer list.
+
 If anything goes well you'll get a newly deployed OpenStack environment,
 then you can execute kolla ansible script to initialize network and flavor:
 ```
