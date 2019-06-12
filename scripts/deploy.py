@@ -16,7 +16,7 @@ KOLLA_ANSIBLE_CMD = 'kolla-ansible/tools/kolla-ansible'
 
 def provision_deploy_node(conf):
     os.chdir(WORK_DIR)
-    install_kolla_ansible()
+    install_kolla_ansible(conf)
     generate_inventory(conf)
     generate_conf(conf)
     bootstrap_server(conf)
@@ -24,10 +24,17 @@ def provision_deploy_node(conf):
     deploy(conf)
 
 
-def install_kolla_ansible():
-    Repo.clone_from(
+def install_kolla_ansible(conf):
+    repo = Repo.clone_from(
         KOLLA_ANSIBLE_REPO,
         os.path.join(WORK_DIR, 'kolla-ansible'))
+    release = conf.kolla_ansible_conf.get('openstack_release') or 'master'
+
+    # If user requests OpenStack release other than master
+    # checkout corresponding branch
+    if release != 'master':
+        repo.git.checkout('-b', 'stable/{}'.format(release))
+
     subprocess.run(
         'pip3 install -r kolla-ansible/requirements.txt',
         shell=True,
